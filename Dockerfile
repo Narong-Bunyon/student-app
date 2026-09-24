@@ -41,8 +41,12 @@ COPY docker/default.conf /etc/nginx/http.d/default.conf
 # Configure Supervisor (to run Nginx and PHP-FPM together)
 COPY docker/supervisord.conf /etc/supervisord.conf
 
+# Copy and set permissions for entrypoint script
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 # Expose port 80 for web traffic
 EXPOSE 80
 
-# Start Supervisor (which starts Nginx and PHP-FPM)
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+# Use the entrypoint script to boot
+CMD ["/usr/local/bin/entrypoint.sh"]

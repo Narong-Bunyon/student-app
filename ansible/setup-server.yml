@@ -1,0 +1,115 @@
+---
+- name: Provision Ubuntu Server for Dockerized Laravel Application
+  hosts: all
+  become: yes # Run all tasks as root (sudo)
+  vars:
+    # Variables that you can change
+    project_dir: "/var/www/student-app"
+    swap_size: "1G"
+
+  tasks:
+    # 1. System Updates
+    - name: Update apt cache and upgrade all packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+        autoremove: yes
+
+    # 2. Essential System Packages
+    - name: Install essential packages (curl, git, ufw, etc.)
+      apt:
+        pkg:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+          - git
+          - ufw
+        state: present
+
+    # 3. Add Docker's official GPG key
+    - name: Add Docker GPG apt Key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    # 4. Add Docker Repository
+    - name: Add Docker Repository
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu focal stable
+        state: present
+
+    # 5. Install Docker
+    - name: Install Docker CE
+      apt:
+        name: docker-ce
+        state: present
+        update_cache: yes
+
+    # 6. Ensure Docker Service is running and enabled on boot
+    - name: Start and enable Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    # 7. Setup a Swap file (Crucial for smaller servers so they don't crash)
+    - name: Create swap file
+      command: fallocate -l {{ swap_size }} /swapfile
+      args:
+        creates: /swapfile
+
+    - name: Set permissions on swap file
+      file:
+        path: /swapfile
+        mode: "0600"
+
+    - name: Format swap file
+      command: mkswap /swapfile
+      when: ansible_swaptotal_mb == 0
+
+    - name: Enable swap
+      command: swapon /swapfile
+      when: ansible_swaptotal_mb == 0
+
+    - name: Make swap permanent in /etc/fstab
+      mount:
+        name: none
+        src: /swapfile
+        fstype: swap
+        opts: sw
+        passno: 0
+        dump: 0
+        state: present
+
+    # 8. Firewall Configuration (UFW)
+    - name: Configure UFW - Allow SSH (Port 22)
+      ufw:
+        rule: allow
+        name: OpenSSH
+
+    - name: Configure UFW - Allow HTTP (Port 80)
+      ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+
+    - name: Configure UFW - Allow HTTPS (Port 443)
+      ufw:
+        rule: allow
+        port: '443'
+        proto: tcp
+
+    - name: Enable UFW Firewall
+      ufw:
+        state: enabled
+        policy: deny
+
+    # 9. Create Project Directory
+    - name: Create project directory for Laravel app
+      file:
+        path: "{{ project_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
